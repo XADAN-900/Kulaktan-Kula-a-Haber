@@ -3,7 +3,10 @@
 // GROQ_API_KEY, Vercel panelinden (Settings > Environment Variables) eklenir;
 // kod içine YAZILMAZ, process.env üzerinden okunur.
 
-const GROQ_MODEL = 'llama-3.3-70b-versatile'; // Türkçe için iyi çalışan, çok dilli Groq modeli.
+// llama-3.3-70b-versatile Groq tarafından devre dışı bırakıldı (Ağustos 2026).
+// Groq'un önerdiği güncel modellerden biri kullanılıyor; istenirse Vercel'de
+// GROQ_MODEL ortam değişkeniyle başka bir modele geçilebilir.
+const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
