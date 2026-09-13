@@ -635,15 +635,20 @@ async function fetchCategory(catKey){
   }
   const items = rawItems.slice(0, 18).map((item, idx)=>{
     const {title, source} = splitTitleSource(item.title);
+    const realSource = item.source || source;
     return {
       id: catKey + '-' + idx,
       link: item.link,
       cat: catKey,
       title,
-      dek: deriveDek(item.description, title, source),
+      dek: deriveDek(item.description, title, realSource),
       image: extractImage(item),
-      author: (item.author && item.author.trim()) ? item.author.trim() : source,
-      pubDate: item.pubDate
+      author: (item.author && item.author.trim()) ? item.author.trim() : realSource,
+      pubDate: item.pubDate,
+      // /api/rss zaten kaynağı sunucu tarafında çekip doğruladı (aksi halde bu
+      // öğe burada yer almazdı) — tam metin elimizde, tekrar /api/article'a
+      // gitmeye gerek yok.
+      fullText: Array.isArray(item.fullText) ? item.fullText : null
     };
   }).filter(a=>a.title);
   newsCache[catKey] = items;
@@ -984,6 +989,13 @@ function renderFullArticle(article){
   }
   if(fullArticleCache[article.id]){
     box.innerHTML = fullArticleCache[article.id].paragraphs.map(p=>`<p>${escapeHtml(p)}</p>`).join('');
+    return;
+  }
+  // RSS öğeleri için tam metin /api/rss aşamasında zaten çekilip doğrulanmıştı —
+  // burada tekrar sunucuya gitmeden doğrudan onu göster.
+  if(Array.isArray(article.fullText) && article.fullText.length > 0){
+    fullArticleCache[article.id] = { paragraphs: article.fullText };
+    box.innerHTML = article.fullText.map(p=>`<p>${escapeHtml(p)}</p>`).join('');
     return;
   }
   box.innerHTML = `<div class="full-loading"><div class="mini-spin"></div>Haberin tamamı yükleniyor…</div>`;

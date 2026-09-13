@@ -2,8 +2,25 @@
 // RSS feed'i sunucu tarafında çeker (server-to-server istek CORS'a tabi değildir).
 // Böylece rss2json/allorigins/codetabs gibi kararsız üçüncü parti proxy'lere ihtiyaç kalmaz.
 // Kullanım: /api/rss?url=<encodeURIComponent(feed_url)>
+//
+// ÖNEMLİ: Google News RSS her öğe için sadece başlık/özet/link verir; gerçek habere
+// yönlendiren link çoğu zaman şifreli bir Google yönlendirmesidir. Burada feed'deki
+// HER öğenin kaynak sayfası sunucu tarafında ayrıca çekilip tam metin paragrafları
+// çıkarılır (bkz. _extract.js). Kaynağı herhangi bir sebeple çekilemeyen
+// (zaman aşımı, 404/500, yönlendirme gerçek siteye ulaşmadıysa, sayfadan metin
+// çıkarılamadıysa vb.) haberler sonuçtan tamamen elenir — yarım/kaynaksız haber
+// listeye hiç girmez.
+
+const { fetchArticle } = require('./_extract');
 
 const ALLOWED_HOSTS = ['news.google.com'];
+
+// Doğrulama için tek bir öğeye ayrılan azami süre. Feed'deki öğeler paralel
+// işlendiği için toplam süre bunun toplamı değil, en yavaş isteğin süresidir.
+const PER_ITEM_TIMEOUT_MS = 6000;
+// Feed'den en fazla kaç öğe doğrulanacak (bir kısmı kaynağı çekilemediği için
+// elenebileceğinden, sunulacak habere yetecek kadar payla çekiyoruz).
+const MAX_ITEMS_TO_CHECK = 30;
 
 function unescapeXml(str) {
   return (str || '')
@@ -36,46 +53,13 @@ function parseRssItems(xml) {
     description: unescapeXml(extractTag(block, 'description')),
     author: '',
     // Bazı feed'ler görseli media:content / media:thumbnail / enclosure ile verir.
-    // Google News RSS bunları vermiyor; o durumda aşağıda kaynak sayfadan og:image çekilir.
+    // Google News RSS bunları vermiyor; o durumda kaynak sayfadan çekilen og:image kullanılır.
     thumbnail:
       extractAttr(block, 'media:content', 'url') ||
       extractAttr(block, 'media:thumbnail', 'url') ||
       extractAttr(block, 'enclosure', 'url') ||
       '',
   })).filter((item) => item.title);
-}
-
-// Google News RSS öğelerinde görsel bulunmuyor. Kaynak makale sayfasını kısa bir
-// süre limitiyle çekip og:image / twitter:image meta etiketinden görsel URL'si alıyoruz.
-async function fetchOgImage(link) {
-  if (!link) return '';
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3500);
-    const pageRes = await fetch(link, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; KulaktanKulagaBot/1.0)' },
-    });
-    clearTimeout(timer);
-    if (!pageRes.ok) return '';
-
-    // Google News linkleri şifreli bir yönlendirmedir; sunucudan yapılan bu istek
-    // (tarayıcıdaki gibi JS çalıştırmadığı için) gerçek kaynağa ulaşamayabilir ve
-    // Google'ın kendi haber uygulaması sayfası/ikonu döner. Yönlendirme gerçek siteye
-    // gitmediyse (hâlâ google.com'daysak) o görseli KULLANMA — yanlış/aynı logo olur.
-    let finalHost = '';
-    try { finalHost = new URL(pageRes.url).hostname; } catch (e) { /* yok say */ }
-    if (finalHost.endsWith('google.com')) return '';
-
-    const html = await pageRes.text();
-    const m =
-      html.match(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i) ||
-      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i) ||
-      html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
-    return m ? m[1] : '';
-  } catch (e) {
-    return '';
-  }
 }
 
 module.exports = async (req, res) => {
@@ -112,19 +96,43 @@ module.exports = async (req, res) => {
       return;
     }
     const xml = await feedRes.text();
-    const items = parseRssItems(xml);
-    if (items.length === 0) {
+    const rawItems = parseRssItems(xml);
+    if (rawItems.length === 0) {
       res.status(502).json({ error: 'Feed boş döndü.' });
       return;
     }
-    // Görseli feed'den gelmeyen haberler için kaynak sayfadan og:image dene (paralel, sınırlı süreli).
-    await Promise.allSettled(
-      items.slice(0, 18).map(async (item) => {
-        if (!item.thumbnail) {
-          item.thumbnail = await fetchOgImage(item.link);
-        }
-      })
+
+    // Her öğenin kaynağını paralel olarak çek ve doğrula; kaynağı çekilemeyenleri
+    // (tam metin çıkarılamayan, zaman aşımına uğrayan, hataya düşen) tamamen ele.
+    const candidates = rawItems.slice(0, MAX_ITEMS_TO_CHECK);
+    const settled = await Promise.allSettled(
+      candidates.map((item) => fetchArticle(item.link, PER_ITEM_TIMEOUT_MS))
     );
+
+    const items = [];
+    settled.forEach((result, idx) => {
+      if (result.status !== 'fulfilled' || !result.value) return; // kaynak çekilemedi — atla
+      const article = result.value;
+      const item = candidates[idx];
+      items.push({
+        title: item.title,
+        link: article.sourceUrl || item.link,
+        pubDate: article.publishedDate || item.pubDate,
+        description: item.description,
+        author: article.author || '',
+        thumbnail: item.thumbnail || article.image || '',
+        // Kaynak sayfadan çekilen tam metin ve gerçek kaynak adı — istemci bunu
+        // tekrar /api/article çağırmadan doğrudan kullanabilir.
+        fullText: article.paragraphs,
+        source: article.source,
+      });
+    });
+
+    if (items.length === 0) {
+      res.status(502).json({ error: 'Bu kategorideki haberlerin hiçbirinin kaynağı şu anda çekilemedi.' });
+      return;
+    }
+
     // Tarayıcı kısa süre cache'lesin, gereksiz tekrar istekleri azalsın.
     res.setHeader('Cache-Control', 's-maxage=180, stale-while-revalidate=300');
     res.status(200).json({ items });

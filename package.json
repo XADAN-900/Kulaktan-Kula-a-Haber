@@ -6,6 +6,14 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@vercel/blob": "^2.8.0"
+    "@vercel/blob": "^2.8.0",
+    "@mozilla/readability": "^0.6.0",
+    "jsdom": "^30.0.1",
+    "metascraper": "^5.56.2",
+    "metascraper-image": "^5.56.2",
+    "metascraper-title": "^5.56.2",
+    "metascraper-publisher": "^5.56.2",
+    "metascraper-date": "^5.56.2",
+    "metascraper-author": "^5.56.2"
   }
 }
