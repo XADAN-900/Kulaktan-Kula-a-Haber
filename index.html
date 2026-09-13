@@ -53,6 +53,7 @@
   .live-dot{display:inline-flex;align-items:center;gap:6px;}
   .live-dot::before{content:"";width:6px;height:6px;border-radius:50%;background:#5bd67a;animation:pulseDot 1.8s ease-in-out infinite;}
   @keyframes pulseDot{0%,100%{opacity:1;}50%{opacity:0.35;}}
+  .live-clock{font-variant-numeric:tabular-nums;font-feature-settings:"tnum";letter-spacing:0.02em;color:#e8e5dd;}
 
   /* masthead */
   .masthead{
@@ -143,6 +144,13 @@
   .article-head .dek{font-size:18px;color:var(--ink-soft);margin-top:14px;line-height:1.55;}
   .article-media{max-width:900px;margin:26px auto;aspect-ratio:16/7;border-radius:var(--radius-sm);overflow:hidden;background:var(--paper-dim);}
   .article-media img{width:100%;height:100%;object-fit:cover;}
+  .article-fulltext{max-width:68ch;margin:0 auto 28px;font-size:17px;line-height:1.8;color:#2b2823;}
+  .article-fulltext p{margin:0 0 16px;}
+  .article-fulltext p:last-child{margin-bottom:0;}
+  .full-loading{display:flex;align-items:center;gap:10px;color:var(--ink-soft);font-size:14.5px;padding:6px 0;}
+  .full-loading .mini-spin{width:15px;height:15px;border-radius:50%;border:2px solid var(--hairline);border-top-color:var(--red);animation:spin 0.8s linear infinite;flex:0 0 auto;}
+  .full-error{background:var(--white);border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:16px 18px;font-size:14.5px;color:var(--ink-soft);}
+  .full-error a{color:var(--red);font-weight:700;}
 
   .ai-summary-box{
     max-width:68ch;margin:0 auto 22px;padding:20px 22px;background:#fbf9f2;
@@ -164,8 +172,6 @@
   }
   .source-note .s-txt{font-size:13.5px;color:var(--ink-soft);}
   .source-note .s-txt strong{color:var(--ink);}
-  .btn-outread{background:var(--red);color:#fff;border:none;font-weight:700;font-size:13.5px;padding:10px 18px;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap;}
-  .btn-outread:hover{background:var(--red-dark);}
 
   .reaction-row{display:flex;gap:10px;margin-top:16px;}
   .react-btn{display:inline-flex;align-items:center;gap:8px;background:var(--white);border:1px solid var(--hairline);border-radius:20px;padding:8px 16px;font-weight:700;font-size:13.5px;cursor:pointer;color:var(--ink-soft);}
@@ -272,6 +278,7 @@
     <div class="u-left">
       <span class="live-dot">Canlı akış</span>
       <span id="today-date"></span>
+      <span id="live-clock" class="live-clock"></span>
     </div>
   </div>
 </div>
@@ -355,14 +362,15 @@
   </div>
   <div class="article-media" id="a-media"></div>
 
+  <div class="article-fulltext" id="article-fulltext"></div>
+
   <div class="ai-summary-box" id="ai-summary-box">
     <div class="ai-summary-tag">✦ AI Özeti</div>
     <div id="ai-summary-body"></div>
   </div>
 
   <div class="source-note">
-    <div class="s-txt">Haberin tamamı ve orijinal görsel/videolar kaynak sitede: <strong id="a-source-name"></strong></div>
-    <button class="btn-outread" id="a-outlink" onclick="openSourceLink()">Habrein tamamını oku ↗</button>
+    <div class="s-txt">Kaynak: <strong id="a-source-name"></strong></div>
   </div>
 
   <div class="comments">
@@ -461,6 +469,15 @@
 <script>
 /* ---------- yardımcılar ---------- */
 document.getElementById('today-date').textContent = new Date().toLocaleDateString('tr-TR', {day:'numeric', month:'long', year:'numeric', weekday:'long'});
+
+/* ---------- canlı saat: saniyesi saniyesine güncellenen saat göstergesi ---------- */
+function tickLiveClock(){
+  const el = document.getElementById('live-clock');
+  if(!el) return;
+  el.textContent = new Date().toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+tickLiveClock();
+setInterval(tickLiveClock, 1000);
 
 function whisperSVG(h){
   return `<svg viewBox="0 0 600 ${h}" width="100%" height="${h}" preserveAspectRatio="none" aria-hidden="true">
@@ -942,22 +959,51 @@ function openArticle(id){
   document.getElementById('a-byline').textContent = a.author + ' · ' + timeAgo(a.pubDate);
   document.getElementById('a-media').innerHTML = a.image ? `<img src="${a.image}" alt="">` : mediaFallback(CATS[a.cat]);
   document.getElementById('a-source-name').textContent = a.author;
-  document.getElementById('a-outlink').dataset.href = a.link;
   renderComments(a.link);
   renderReactions(a.link);
+  renderFullArticle(a);
   renderAiSummary(a);
   window.scrollTo({top:0,behavior:'smooth'});
 }
-function openSourceLink(){
-  const href = document.getElementById('a-outlink').dataset.href;
-  if(href) window.open(href, '_blank', 'noopener');
+
+/* ---------- haberin tamamı (kendi sayfamızda, dışarı yönlendirmeden) ----------
+   Kaynak sayfa sunucu tarafında (/api/article) çekilip ana metin paragrafları
+   çıkarılıyor; kullanıcı başka bir siteye gitmeden haberin tamamını burada okuyor. */
+const fullArticleCache = {};
+async function fetchFullArticle(link){
+  const res = await fetch('/api/article?link=' + encodeURIComponent(link));
+  const data = await res.json().catch(()=>null);
+  if(!res.ok || !data || !Array.isArray(data.paragraphs) || data.paragraphs.length === 0) throw new Error('full-fail');
+  return data;
+}
+function renderFullArticle(article){
+  const box = document.getElementById('article-fulltext');
+  if(!article.link || article.link === '#'){
+    box.innerHTML = '';
+    return;
+  }
+  if(fullArticleCache[article.id]){
+    box.innerHTML = fullArticleCache[article.id].paragraphs.map(p=>`<p>${escapeHtml(p)}</p>`).join('');
+    return;
+  }
+  box.innerHTML = `<div class="full-loading"><div class="mini-spin"></div>Haberin tamamı yükleniyor…</div>`;
+  fetchFullArticle(article.link).then(data=>{
+    // Kullanıcı bu sırada başka bir habere geçmiş olabilir; hâlâ aynı haberdeysek göster.
+    if(!activeArticle || activeArticle.id !== article.id) return;
+    fullArticleCache[article.id] = data;
+    box.innerHTML = data.paragraphs.map(p=>`<p>${escapeHtml(p)}</p>`).join('');
+  }).catch(()=>{
+    if(!activeArticle || activeArticle.id !== article.id) return;
+    box.innerHTML = `<p class="full-error">Haberin tam metni bu kaynaktan otomatik olarak alınamadı. Yukarıdaki özeti okuyabilirsin.</p>`;
+  });
 }
 
 /* ---------- AI destekli özet ----------
-   Not: Elimizde kaynağın sadece RSS başlığı ve kısa açıklaması var; kaynağın tam metnine
-   erişimimiz yok. Bu fonksiyon o kısa bilgiyi daha akıcı/bütünlüklü bir özet paragrafına
+   Not: Bu özet RSS başlığı ve kısa açıklamasından üretiliyor (haberin tam metni
+   artık ayrıca /api/article ile çekilip "article-fulltext" alanında gösteriliyor).
+   Bu fonksiyon o kısa bilgiyi daha akıcı/bütünlüklü bir özet paragrafına
    dönüştürür — kaynağın kendi metnini birebir taklit etmesi veya uydurma detay eklemesi
-   istenmez. Tam haber için kaynağa yönlendirme her zaman ayrıca gösterilir.
+   istenmez.
 
    ÖNEMLİ: Gerçek API key'i asla burada (frontend'de) tutma! İstek Vercel Serverless
    Function'a gidiyor (/api/summarize.js); key orada Vercel'in "Environment Variables"
@@ -984,7 +1030,7 @@ function renderAiSummary(article){
   const body = document.getElementById('ai-summary-body');
   if(aiSummaryCache[article.id]){
     body.innerHTML = aiSummaryCache[article.id].map(p=>`<p>${escapeHtml(p)}</p>`).join('') +
-      `<div class="ai-summary-note">Bu özet, kaynağın başlık ve açıklamasından yapay zeka ile oluşturulmuştur. Tüm ayrıntılar için kaynağa gidin.</div>`;
+      `<div class="ai-summary-note">Bu özet, kaynağın başlık ve açıklamasından yapay zeka ile oluşturulmuştur. Haberin tamamı yukarıda yer alıyor.</div>`;
     return;
   }
   body.innerHTML = `<div class="ai-summary-loading"><div class="mini-spin"></div>Özet hazırlanıyor…</div>`;
@@ -993,7 +1039,7 @@ function renderAiSummary(article){
     const paras = text.split(/\n+/).map(p=>p.trim()).filter(Boolean);
     aiSummaryCache[article.id] = paras;
     body.innerHTML = paras.map(p=>`<p>${escapeHtml(p)}</p>`).join('') +
-      `<div class="ai-summary-note">Bu özet, kaynağın başlık ve açıklamasından yapay zeka ile oluşturulmuştur. Tüm ayrıntılar için kaynağa gidin.</div>`;
+      `<div class="ai-summary-note">Bu özet, kaynağın başlık ve açıklamasından yapay zeka ile oluşturulmuştur. Haberin tamamı yukarıda yer alıyor.</div>`;
   }).catch(()=>{
     body.innerHTML = `<p class="ai-summary-error">Özet şu anda oluşturulamadı. Aşağıdaki bağlantıdan haberin devamını okuyabilirsin.</p>`;
   });
@@ -1596,7 +1642,7 @@ const MODAL_CONTENT = {
   ilkeler:{
     title:'Yayın İlkeleri',
     body:`<p>Kulaktan Kulağa, doğruluğu teyit edilmemiş bilgiyi haber olarak sunmamayı, kaynak göstermeyi ve okurun yanıltılmamasını temel ilke sayar.</p>
-          <p>Sitede yer alan haber özetleri kaynak yayının kendi metninden alınmıştır; haberin tam metni için ilgili kaynağa yönlendirme yapılır.</p>`
+          <p>Sitede yer alan haberler kaynak yayınlardan alınmış, tam metinleri sitemizde kaynağa yönlendirme yapılmadan gösterilmektedir.</p>`
   },
   kunye:{
     title:'Künye',
