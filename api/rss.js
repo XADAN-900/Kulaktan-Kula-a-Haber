@@ -58,6 +58,15 @@ async function fetchOgImage(link) {
     });
     clearTimeout(timer);
     if (!pageRes.ok) return '';
+
+    // Google News linkleri şifreli bir yönlendirmedir; sunucudan yapılan bu istek
+    // (tarayıcıdaki gibi JS çalıştırmadığı için) gerçek kaynağa ulaşamayabilir ve
+    // Google'ın kendi haber uygulaması sayfası/ikonu döner. Yönlendirme gerçek siteye
+    // gitmediyse (hâlâ google.com'daysak) o görseli KULLANMA — yanlış/aynı logo olur.
+    let finalHost = '';
+    try { finalHost = new URL(pageRes.url).hostname; } catch (e) { /* yok say */ }
+    if (finalHost.endsWith('google.com')) return '';
+
     const html = await pageRes.text();
     const m =
       html.match(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i) ||
