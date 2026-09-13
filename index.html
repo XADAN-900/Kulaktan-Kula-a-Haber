@@ -78,7 +78,7 @@
   .ticker .wrap{display:flex;align-items:center;height:36px;padding:0;max-width:none;}
   .ticker-tag{flex:0 0 auto;background:var(--red-dark);padding:0 16px;height:100%;display:flex;align-items:center;font-size:12px;font-weight:800;letter-spacing:0.06em;}
   .ticker-track-outer{overflow:hidden;flex:1;}
-  .ticker-track{display:inline-flex;gap:48px;padding-left:100%;animation:scrollTicker 34s linear infinite;font-size:13.5px;font-weight:500;}
+  .ticker-track{display:inline-flex;gap:80px;padding-left:100%;animation:scrollTicker 34s linear infinite;font-size:13.5px;font-weight:500;}
   .ticker-track span{display:inline-flex;align-items:center;gap:8px;}
   .ticker-track span::before{content:"";width:5px;height:5px;background:#fff;border-radius:50%;opacity:0.7;}
   @keyframes scrollTicker{from{transform:translateX(0);}to{transform:translateX(-100%);}}
@@ -167,6 +167,21 @@
   .btn-outread{background:var(--red);color:#fff;border:none;font-weight:700;font-size:13.5px;padding:10px 18px;border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap;}
   .btn-outread:hover{background:var(--red-dark);}
 
+  .reaction-row{display:flex;gap:10px;margin-top:16px;}
+  .react-btn{display:inline-flex;align-items:center;gap:8px;background:var(--white);border:1px solid var(--hairline);border-radius:20px;padding:8px 16px;font-weight:700;font-size:13.5px;cursor:pointer;color:var(--ink-soft);}
+  .react-btn:hover{border-color:var(--red);color:var(--red);}
+  .react-btn.active{background:var(--red);border-color:var(--red);color:#fff;}
+
+  .admin-box{max-width:520px;margin:40px auto;background:var(--white);border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:26px;}
+  .admin-box h2{font-size:22px;margin-bottom:18px;}
+  .admin-box input, .admin-box select, .admin-box textarea{width:100%;font-family:inherit;font-size:14.5px;border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:10px;background:var(--paper);color:var(--ink);}
+  .admin-box textarea{min-height:90px;resize:vertical;}
+  .admin-error{color:var(--red);font-size:13.5px;margin-top:8px;}
+  .admin-note{font-size:12.5px;color:var(--ink-faint);font-style:italic;margin:10px 0 20px;line-height:1.5;}
+  #admin-panel-box{max-width:640px;}
+  #admin-news-list .comment-item{align-items:flex-start;justify-content:space-between;}
+  #admin-news-list .back-btn{padding:0;color:var(--red);}
+
   .comments{max-width:68ch;margin:30px auto 60px;}
   .comments h3{font-size:19px;margin-bottom:18px;font-family:'Inter',sans-serif;font-weight:800;}
   .comment-form{background:var(--white);border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:18px;margin-bottom:24px;}
@@ -237,9 +252,6 @@
       <span class="live-dot">Canlı akış</span>
       <span id="today-date"></span>
     </div>
-    <div class="u-right">
-      <button class="btn-retry" style="padding:5px 12px;font-size:11.5px;" onclick="reloadAll()">Yenile</button>
-    </div>
   </div>
 </div>
 
@@ -280,7 +292,7 @@
 
 <main class="wrap" id="home-view">
 
-  <div class="home-grid">
+  <div class="home-grid" id="home-grid">
     <div>
       <article class="hero" id="hero-slot"></article>
     </div>
@@ -304,6 +316,10 @@
       <div class="avatar" id="a-avatar"></div>
       <span id="a-byline"></span>
     </div>
+    <div class="reaction-row">
+      <button class="react-btn" id="btn-like" onclick="voteReaction('like')">👍 Beğendim <span id="like-count">0</span></button>
+      <button class="react-btn" id="btn-dislike" onclick="voteReaction('dislike')">👎 Beğenmedim <span id="dislike-count">0</span></button>
+    </div>
   </div>
   <div class="article-media" id="a-media"></div>
 
@@ -325,6 +341,35 @@
       <div class="row-btn"><button class="btn-primary" onclick="submitComment()">Yorumu gönder</button></div>
     </div>
     <div id="comment-list"></div>
+  </div>
+</div>
+
+<div class="wrap" id="admin-view" style="display:none;">
+  <button class="back-btn" onclick="goHome()">&larr; Ana sayfaya dön</button>
+
+  <div class="admin-box" id="admin-login-box">
+    <h2>Yönetici Girişi</h2>
+    <input type="text" id="admin-user" placeholder="Kullanıcı adı" autocomplete="username">
+    <input type="password" id="admin-pass" placeholder="Şifre" autocomplete="current-password">
+    <button class="btn-primary" onclick="adminLogin()">Giriş yap</button>
+    <p class="admin-error" id="admin-login-error"></p>
+  </div>
+
+  <div class="admin-box" id="admin-panel-box" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2>Haber Ekle</h2>
+      <button class="back-btn" style="padding:0;" onclick="adminLogout()">Çıkış yap</button>
+    </div>
+    <select id="admin-cat"></select>
+    <input type="text" id="admin-title" placeholder="Başlık">
+    <textarea id="admin-dek" placeholder="Özet / açıklama"></textarea>
+    <input type="text" id="admin-image" placeholder="Görsel URL (opsiyonel)">
+    <input type="text" id="admin-source" placeholder="Kaynak / yazar adı (opsiyonel)">
+    <input type="text" id="admin-link" placeholder="Kaynak bağlantısı (opsiyonel)">
+    <button class="btn-primary" onclick="adminPublish()">Yayınla</button>
+    <p class="admin-note">Not: Buradan eklenen haberler şu an sadece bu tarayıcıda saklanıyor (localStorage). Haberlerin herkese görünmesi için bir veritabanı bağlanması gerekiyor — istersen onu da ekleyebiliriz.</p>
+    <h3 style="font-size:16px;margin-bottom:10px;">Eklediğin haberler</h3>
+    <div id="admin-news-list"></div>
   </div>
 </div>
 
@@ -454,6 +499,22 @@ const commentsStore = {}; // {articleLink: [ {name, text, ts} ]}
 let currentFilter = 'tumu';
 let activeArticle = null;
 
+// Admin panelinden eklenen haberler, tarayıcıda kalıcı olsun diye localStorage'da tutulur.
+const manualNews = JSON.parse(localStorage.getItem('kk_manual_news') || '[]');
+function saveManualNews(){
+  localStorage.setItem('kk_manual_news', JSON.stringify(manualNews));
+}
+
+// Beğen / beğenme oyları da localStorage'da, haber linkine göre saklanır.
+const reactionsStore = JSON.parse(localStorage.getItem('kk_reactions') || '{}');
+function saveReactions(){
+  localStorage.setItem('kk_reactions', JSON.stringify(reactionsStore));
+}
+function getReactions(link){
+  if(!reactionsStore[link]) reactionsStore[link] = {like:0, dislike:0, voted:null};
+  return reactionsStore[link];
+}
+
 /* RSS artık kendi sunucumuzdaki /api/rss.js üzerinden çekiliyor. Sunucudan sunucuya
    yapılan bu istek CORS'a tabi değildir, bu yüzden rss2json/allorigins/codetabs gibi
    kararsız üçüncü parti proxy'lere artık ihtiyaç yok. */
@@ -522,9 +583,12 @@ async function fetchCategory(catKey){
 }
 
 function getCached(catKey){
-  return newsCache[catKey] || [];
+  const manual = manualNews.filter(n=>n.cat===catKey);
+  return manual.concat(newsCache[catKey] || []);
 }
 function findArticle(id){
+  const manualHit = manualNews.find(n=>n.id===id);
+  if(manualHit) return manualHit;
   for(const key in newsCache){
     const list = newsCache[key];
     if(!list) continue;
@@ -644,7 +708,7 @@ function renderTicker(){
   const track = document.getElementById('ticker-track');
   const list = getCached('gundem');
   if(list.length === 0) return;
-  const headlines = list.slice(0,8).map(a=>`<span>${a.title}</span>`);
+  const headlines = list.slice(0,5).map(a=>`<span>${a.title}</span>`);
   track.innerHTML = headlines.concat(headlines).join('');
 }
 
@@ -671,6 +735,9 @@ function applyFilter(cat, btn){
   const match = btn || document.querySelector(`.nav-links button[data-cat="${cat}"]`);
   if(match) match.classList.add('active');
   showHome();
+  // Manşet (Gündem) kutusu ve "Gündemdekiler" listesi sadece Tümü/Gündem seçiliyken görünsün;
+  // başka bir kategori seçilince sadece o kategorinin haber kutucukları kalsın.
+  document.getElementById('home-grid').style.display = (cat === 'tumu' || cat === 'gundem') ? 'grid' : 'none';
   renderCategorySections(cat);
   if(cat !== 'tumu' && !newsCache[cat] && loadingState[cat] !== 'loading'){
     loadCategory(cat);
@@ -721,7 +788,9 @@ function applyArticleRoute(id){
 }
 function applyRoute(){
   const h = parseHash();
-  if(h.indexOf('haber/') === 0){
+  if(h === 'admin'){
+    showAdminView();
+  } else if(h.indexOf('haber/') === 0){
     applyArticleRoute(h.slice(6));
   } else if(h === '' || h === 'tumu'){
     applyFilter('tumu');
@@ -739,6 +808,7 @@ function openArticle(id){
   if(!a) return;
   activeArticle = a;
   document.getElementById('home-view').style.display = 'none';
+  document.getElementById('admin-view').style.display = 'none';
   document.getElementById('article-view').style.display = 'block';
   document.getElementById('a-cat').textContent = CATS[a.cat];
   document.getElementById('a-title').textContent = a.title;
@@ -750,6 +820,7 @@ function openArticle(id){
   document.getElementById('a-source-name').textContent = a.author;
   document.getElementById('a-outlink').dataset.href = a.link;
   renderComments(a.link);
+  renderReactions(a.link);
   renderAiSummary(a);
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -845,7 +916,133 @@ function submitComment(){
 
 function showHome(){
   document.getElementById('article-view').style.display = 'none';
+  document.getElementById('admin-view').style.display = 'none';
   document.getElementById('home-view').style.display = 'block';
+}
+
+/* ---------- beğen / beğenme ---------- */
+function renderReactions(link){
+  const r = getReactions(link);
+  document.getElementById('like-count').textContent = r.like;
+  document.getElementById('dislike-count').textContent = r.dislike;
+  document.getElementById('btn-like').classList.toggle('active', r.voted === 'like');
+  document.getElementById('btn-dislike').classList.toggle('active', r.voted === 'dislike');
+}
+function voteReaction(type){
+  if(!activeArticle) return;
+  const link = activeArticle.link;
+  const r = getReactions(link);
+  if(r.voted === type){
+    r[type] = Math.max(0, r[type] - 1);
+    r.voted = null;
+  } else {
+    if(r.voted){ r[r.voted] = Math.max(0, r[r.voted] - 1); }
+    r[type] += 1;
+    r.voted = type;
+  }
+  saveReactions();
+  renderReactions(link);
+}
+
+/* ---------- yönetici (admin) paneli ---------- */
+function isAdmin(){
+  return sessionStorage.getItem('kk_admin') === '1';
+}
+function showAdminView(){
+  document.getElementById('home-view').style.display = 'none';
+  document.getElementById('article-view').style.display = 'none';
+  document.getElementById('admin-view').style.display = 'block';
+  const loggedIn = isAdmin();
+  document.getElementById('admin-login-box').style.display = loggedIn ? 'none' : 'block';
+  document.getElementById('admin-panel-box').style.display = loggedIn ? 'block' : 'none';
+  if(loggedIn){
+    populateAdminCatSelect();
+    renderAdminNewsList();
+  }
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+async function adminLogin(){
+  const user = document.getElementById('admin-user').value.trim();
+  const pass = document.getElementById('admin-pass').value;
+  const errEl = document.getElementById('admin-login-error');
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/api/admin-login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: user, password: pass})
+    });
+    const data = await res.json().catch(()=>null);
+    if(res.ok && data && data.ok){
+      sessionStorage.setItem('kk_admin', '1');
+      document.getElementById('admin-pass').value = '';
+      showAdminView();
+    } else {
+      errEl.textContent = 'Kullanıcı adı veya şifre hatalı.';
+    }
+  }catch(e){
+    errEl.textContent = 'Giriş sırasında bir hata oluştu, tekrar dene.';
+  }
+}
+function adminLogout(){
+  sessionStorage.removeItem('kk_admin');
+  showAdminView();
+}
+function populateAdminCatSelect(){
+  const sel = document.getElementById('admin-cat');
+  sel.innerHTML = Object.keys(CATS).map(k=>`<option value="${k}">${CATS[k]}</option>`).join('');
+}
+function adminPublish(){
+  const cat = document.getElementById('admin-cat').value;
+  const title = document.getElementById('admin-title').value.trim();
+  const dek = document.getElementById('admin-dek').value.trim();
+  const image = document.getElementById('admin-image').value.trim();
+  const source = document.getElementById('admin-source').value.trim() || 'Yönetici';
+  const link = document.getElementById('admin-link').value.trim() || '#';
+  if(!title || !dek){
+    alert('Başlık ve özet alanları zorunlu.');
+    return;
+  }
+  manualNews.unshift({
+    id: 'manuel-' + Date.now(),
+    cat, title, dek,
+    image: image || null,
+    author: source,
+    link,
+    pubDate: new Date().toISOString()
+  });
+  saveManualNews();
+  document.getElementById('admin-title').value = '';
+  document.getElementById('admin-dek').value = '';
+  document.getElementById('admin-image').value = '';
+  document.getElementById('admin-source').value = '';
+  document.getElementById('admin-link').value = '';
+  renderAdminNewsList();
+  renderAll();
+}
+function deleteManualNews(id){
+  const idx = manualNews.findIndex(n=>n.id===id);
+  if(idx === -1) return;
+  manualNews.splice(idx, 1);
+  saveManualNews();
+  renderAdminNewsList();
+  renderAll();
+}
+function renderAdminNewsList(){
+  const box = document.getElementById('admin-news-list');
+  if(manualNews.length === 0){
+    box.innerHTML = '<p class="comment-empty">Henüz haber eklemedin.</p>';
+    return;
+  }
+  box.innerHTML = manualNews.map(n=>`
+    <div class="comment-item">
+      <div class="c-body">
+        <span class="c-name">${escapeHtml(n.title)}</span><span class="c-time">${CATS[n.cat]}</span>
+        <div class="c-text">${escapeHtml(n.dek)}</div>
+      </div>
+      <button class="back-btn" onclick="deleteManualNews('${n.id}')">Sil</button>
+    </div>
+  `).join('');
 }
 
 /* ---------- bilgi modalları (İletişim, Künye, vb.) ---------- */
