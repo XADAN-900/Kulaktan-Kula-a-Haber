@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kulaktan Kulağa Haber</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23151412'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-weight='700' font-size='34' fill='%23c31f2b' text-anchor='middle'%3EK%3C/text%3E%3C/svg%3E">
+<title>Haber Rasathanesi</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23151412'/%3E%3Ctext x='32' y='44' font-family='Georgia,serif' font-weight='700' font-size='34' fill='%23c31f2b' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -286,7 +286,7 @@
 <header class="masthead">
   <div class="wrap">
     <a href="#" class="brand-mark" onclick="goHome();return false;">
-      <span class="k1">Kulaktan</span><span class="k2">Kulağa</span>
+      <span class="k1">Haber</span><span class="k2">Rasathanesi</span>
     </a>
     <div class="tagline">Şehirde konuşulan her şeyin ilk durağı — canlı haber akışıyla</div>
   </div>
@@ -439,7 +439,7 @@
   <div class="wrap">
     <div class="foot-grid">
       <div>
-        <div class="foot-brand">Kulaktan Kulağa</div>
+        <div class="foot-brand">Haber Rasathanesi</div>
         <p class="foot-desc">Şehrin sokaklarında, iş yerlerinde ve masalarda konuşulanları derleyip, gerçek kaynaklardan doğrulanmış haber akışıyla okura ulaştıran bağımsız haber platformu.</p>
       </div>
       <div>
@@ -461,7 +461,7 @@
       </div>
     </div>
     <div class="foot-bottom">
-      <span>© 2026 Kulaktan Kulağa Haber. Tüm hakları saklıdır.</span>
+      <span>© 2026 Haber Rasathanesi. Tüm hakları saklıdır.</span>
     </div>
   </div>
 </footer>
@@ -1373,7 +1373,7 @@ function exportAdminData(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'kulaktan-kulaga-yedek-' + new Date().toISOString().slice(0,10) + '.json';
+  a.download = 'haber-rasathanesi-yedek-' + new Date().toISOString().slice(0,10) + '.json';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -1670,17 +1670,17 @@ async function adminDeleteComment(encodedLink, id){
 const MODAL_CONTENT = {
   hakkimizda:{
     title:'Hakkımızda',
-    body:`<p>Kulaktan Kulağa, şehrin sokaklarında, iş yerlerinde ve masalarda konuşulanları derleyip; güvenilir kaynaklardan doğrulanmış haber akışıyla okura ulaştırmayı amaçlayan bağımsız bir haber platformudur.</p>
+    body:`<p>Haber Rasathanesi, şehrin sokaklarında, iş yerlerinde ve masalarda konuşulanları derleyip; güvenilir kaynaklardan doğrulanmış haber akışıyla okura ulaştırmayı amaçlayan bağımsız bir haber platformudur.</p>
           <p>Bu sayfada gösterilen haberler, ilgili kaynak sitelerin herkese açık haber akışlarından gerçek zamanlı olarak çekilmektedir.</p>`
   },
   ilkeler:{
     title:'Yayın İlkeleri',
-    body:`<p>Kulaktan Kulağa, doğruluğu teyit edilmemiş bilgiyi haber olarak sunmamayı, kaynak göstermeyi ve okurun yanıltılmamasını temel ilke sayar.</p>
+    body:`<p>Haber Rasathanesi, doğruluğu teyit edilmemiş bilgiyi haber olarak sunmamayı, kaynak göstermeyi ve okurun yanıltılmamasını temel ilke sayar.</p>
           <p>Sitede yer alan haberler kaynak yayınlardan alınmış, tam metinleri sitemizde kaynağa yönlendirme yapılmadan gösterilmektedir.</p>`
   },
   kunye:{
     title:'Künye',
-    body:`<p><strong>Yayın adı:</strong> Kulaktan Kulağa Haber</p>
+    body:`<p><strong>Yayın adı:</strong> Haber Rasathanesi</p>
           <p><strong>Sorumlu editör:</strong> Yayın Kurulu</p>
           <p>Bu site, açık kaynak haber akışlarını gösteren bir örnek/şablon uygulamasıdır.</p>`
   }
