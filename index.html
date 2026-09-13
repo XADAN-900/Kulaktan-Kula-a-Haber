@@ -526,7 +526,14 @@ function extractImage(item){
 }
 function truncate(str, n){
   if(!str) return '';
-  return str.length > n ? str.slice(0, n).trim() + '…' : str;
+  if(str.length <= n) return str;
+  let cut = str.slice(0, n);
+  // Kelimenin ortasından kesmemek için son boşluğa kadar geri git.
+  const lastSpace = cut.lastIndexOf(' ');
+  if(lastSpace > n * 0.6){ // makul bir noktadaysa oraya kadar kısalt
+    cut = cut.slice(0, lastSpace);
+  }
+  return cut.trim() + '…';
 }
 function escapeHtml(str){
   const div = document.createElement('div');
@@ -611,6 +618,20 @@ function deriveDek(rawDescription, title, source){
   return truncate(text, 190);
 }
 
+// Google News'in özet alanı genelde birden fazla kaynağın başlıklarını üst üste
+// bindirip karmaşık, yarım cümlelerle biten bir metin veriyor. Artık haberin
+// gerçek tam metnini kendimiz çektiğimiz için, listede özet olarak o karışık
+// metin yerine haberin gerçek ilk paragraf(lar)ını gösteriyoruz — daha temiz
+// ve asla cümlenin ortasından kesilmiyor.
+function deriveDekFromFullText(paragraphs){
+  if(!Array.isArray(paragraphs) || paragraphs.length === 0) return null;
+  let text = paragraphs[0].trim();
+  if(text.length < 60 && paragraphs[1]){
+    text = (text + ' ' + paragraphs[1].trim()).trim();
+  }
+  return truncate(text, 190);
+}
+
 function splitTitleSource(rawTitle){
   let title = stripHtml(rawTitle);
   let source = 'Kaynak site';
@@ -636,19 +657,20 @@ async function fetchCategory(catKey){
   const items = rawItems.slice(0, 18).map((item, idx)=>{
     const {title, source} = splitTitleSource(item.title);
     const realSource = item.source || source;
+    const fullText = Array.isArray(item.fullText) ? item.fullText : null;
     return {
       id: catKey + '-' + idx,
       link: item.link,
       cat: catKey,
       title,
-      dek: deriveDek(item.description, title, realSource),
+      dek: deriveDekFromFullText(fullText) || deriveDek(item.description, title, realSource),
       image: extractImage(item),
       author: (item.author && item.author.trim()) ? item.author.trim() : realSource,
       pubDate: item.pubDate,
       // /api/rss zaten kaynağı sunucu tarafında çekip doğruladı (aksi halde bu
       // öğe burada yer almazdı) — tam metin elimizde, tekrar /api/article'a
       // gitmeye gerek yok.
-      fullText: Array.isArray(item.fullText) ? item.fullText : null
+      fullText
     };
   }).filter(a=>a.title);
   newsCache[catKey] = items;
