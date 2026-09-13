@@ -181,6 +181,14 @@
   #admin-panel-box{max-width:640px;}
   #admin-news-list .comment-item{align-items:flex-start;justify-content:space-between;}
   #admin-news-list .back-btn{padding:0;color:var(--red);}
+  .admin-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:16px 0 20px;}
+  .admin-stat-card{background:var(--paper);border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:12px 14px;}
+  .admin-stat-card .num{font-family:'Inter',sans-serif;font-weight:800;font-size:22px;line-height:1.1;}
+  .admin-stat-card .lbl{font-size:12px;color:var(--ink-faint);margin-top:2px;}
+  .admin-filter-input{width:100%;font-family:inherit;font-size:14px;border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:14px;background:var(--paper);color:var(--ink);}
+  .admin-group-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 0 4px;padding-bottom:6px;border-bottom:1px solid var(--hairline);}
+  .admin-group-head h4{font-size:14px;font-family:'Inter',sans-serif;font-weight:700;}
+  .admin-group-head .back-btn{color:var(--red);}
 
   .comments{max-width:68ch;margin:30px auto 60px;}
   .comments h3{font-size:19px;margin-bottom:18px;font-family:'Inter',sans-serif;font-weight:800;}
@@ -195,7 +203,20 @@
   .comment-item .c-name{font-weight:700;font-size:14px;}
   .comment-item .c-time{font-size:12px;color:var(--ink-faint);margin-left:8px;font-weight:400;}
   .comment-item .c-text{margin-top:4px;font-size:14.5px;line-height:1.55;color:#2b2823;}
+  .comment-item .c-name-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .c-own-delete{background:none;border:none;color:var(--ink-faint);font-size:12.5px;cursor:pointer;padding:2px 4px;font-family:inherit;}
+  .c-own-delete:hover{color:var(--red);text-decoration:underline;}
+  .c-edit-form{margin-top:6px;}
+  .c-edit-form textarea{width:100%;font-family:inherit;font-size:14.5px;line-height:1.5;border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:8px 10px;min-height:70px;resize:vertical;background:var(--paper);color:var(--ink);margin-bottom:8px;}
   .comment-empty{color:var(--ink-faint);font-size:14px;font-style:italic;}
+
+  .search-box{position:relative;margin-left:auto;}
+  .search-box input{width:180px;font-family:inherit;font-size:13.5px;border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:7px 12px;background:var(--paper);color:var(--ink);}
+  .search-box input:focus{outline:none;border-color:var(--red);}
+  @media (max-width:820px){ .search-box{margin:8px 0 0;width:100%;} .search-box input{width:100%;} }
+  .search-results-head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:20px 0 6px;}
+  .search-results-head h3{font-size:19px;font-family:'Inter',sans-serif;font-weight:800;}
+  .search-clear{background:none;border:none;color:var(--ink-faint);font-size:13px;cursor:pointer;text-decoration:underline;font-family:inherit;}
 
   footer{margin-top:60px;background:var(--ink);color:#cfccc3;}
   footer .wrap{padding:40px 24px 26px;}
@@ -276,6 +297,9 @@
       <li><button data-cat="teknoloji" onclick="filterCat('teknoloji',this)">Teknoloji</button></li>
       <li><button data-cat="magazin" onclick="filterCat('magazin',this)">Magazin</button></li>
     </ul>
+    <div class="search-box">
+      <input type="search" id="site-search" placeholder="Haberlerde ara…" oninput="onSearchInput(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();}">
+    </div>
   </div>
 </nav>
 
@@ -301,6 +325,8 @@
       <ol class="side-list" id="trend-list"></ol>
     </aside>
   </div>
+
+  <div id="search-results" style="display:none;"></div>
 
   <div id="category-sections"></div>
 
@@ -363,18 +389,33 @@
 
   <div class="admin-box" id="admin-panel-box" style="display:none;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
-      <h2>Haber Ekle</h2>
+      <h2 id="admin-form-title">Haber Ekle</h2>
       <button class="back-btn" style="padding:0;" onclick="adminLogout()">Çıkış yap</button>
     </div>
+
+    <div class="admin-stats" id="admin-stats"></div>
+    <div class="row-btn" style="justify-content:flex-start;margin-bottom:20px;">
+      <button class="back-btn" onclick="exportAdminData()">⬇ Haberleri ve yorumları dışa aktar (JSON)</button>
+    </div>
+
     <select id="admin-cat"></select>
     <input type="text" id="admin-title" placeholder="Başlık">
     <textarea id="admin-dek" placeholder="Özet / açıklama"></textarea>
     <input type="text" id="admin-image" placeholder="Görsel URL (opsiyonel)">
     <input type="text" id="admin-source" placeholder="Kaynak / yazar adı (opsiyonel)">
     <input type="text" id="admin-link" placeholder="Kaynak bağlantısı (opsiyonel)">
-    <button class="btn-primary" onclick="adminPublish()">Yayınla</button>
-    <h3 style="font-size:16px;margin-bottom:10px;">Eklediğin haberler</h3>
+    <div style="display:flex;gap:10px;">
+      <button class="btn-primary" id="admin-save-btn" onclick="adminSaveNews()">Yayınla</button>
+      <button class="back-btn" id="admin-cancel-edit-btn" style="display:none;" onclick="adminCancelEdit()">İptal</button>
+    </div>
+    <h3 style="font-size:16px;margin:24px 0 10px;">Eklediğin haberler</h3>
+    <input type="search" class="admin-filter-input" id="admin-news-search" placeholder="Haberlerinde ara…" oninput="renderAdminNewsList()">
     <div id="admin-news-list"></div>
+
+    <h3 style="font-size:16px;margin:32px 0 10px;">Yorumları yönet</h3>
+    <p class="admin-note">Tüm haberlerdeki yorumları buradan görüp silebilir, düzenleyebilirsin.</p>
+    <input type="search" class="admin-filter-input" id="admin-comment-search" placeholder="Yorumlarda, isimde veya haber başlığında ara…" oninput="renderAdminCommentList()">
+    <div id="admin-comment-list"></div>
   </div>
 </div>
 
@@ -730,6 +771,75 @@ function renderAll(){
   renderCategorySections(currentFilter);
 }
 
+/* ---------- arama ---------- */
+let searchQuery = '';
+let searchDebounceTimer = null;
+function onSearchInput(value){
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(()=>runSearch(value.trim()), 250);
+}
+function clearSearch(){
+  searchQuery = '';
+  const input = document.getElementById('site-search');
+  if(input) input.value = '';
+  const box = document.getElementById('search-results');
+  box.style.display = 'none';
+  box.innerHTML = '';
+}
+function allKnownArticles(){
+  const out = [];
+  for(const key in CATS){
+    getCached(key).forEach(a=>out.push(a));
+  }
+  // manuel haberler zaten getCached() içinde kategorilerine göre gelir, ama
+  // kategorisi CATS dışında olan olursa da kaçmasın diye ayrıca ekle.
+  manualNews.forEach(a=>{ if(!CATS[a.cat] && !out.find(x=>x.id===a.id)) out.push(a); });
+  return out;
+}
+function runSearch(query){
+  searchQuery = query;
+  const box = document.getElementById('search-results');
+  if(!query){
+    clearSearch();
+    document.getElementById('home-grid').style.display = (currentFilter==='tumu' || currentFilter==='gundem') ? 'grid' : 'none';
+    document.getElementById('category-sections').style.display = 'block';
+    return;
+  }
+  // Arama başlarken henüz hiç yüklenmemiş kategoriler varsa arka planda çekilsin,
+  // sonuçlar geldikçe (arama kutusu hâlâ doluysa) sonuç listesi tazelensin.
+  Object.keys(CATS).forEach(key=>{
+    if(newsCache[key] === undefined && loadingState[key] !== 'loading'){
+      loadCategory(key).then(()=>{ if(searchQuery === query) runSearch(query); });
+    }
+  });
+  document.getElementById('home-grid').style.display = 'none';
+  document.getElementById('category-sections').style.display = 'none';
+  const q = query.toLocaleLowerCase('tr');
+  const results = allKnownArticles().filter(a=>
+    (a.title && a.title.toLocaleLowerCase('tr').includes(q)) ||
+    (a.dek && a.dek.toLocaleLowerCase('tr').includes(q)) ||
+    (a.author && a.author.toLocaleLowerCase('tr').includes(q))
+  );
+  box.style.display = 'block';
+  const stillLoading = Object.keys(CATS).some(key=>loadingState[key] === 'loading' || loadingState[key] === undefined);
+  box.innerHTML = `
+    <div class="search-results-head">
+      <h3>"${escapeHtml(query)}" için ${results.length} sonuç</h3>
+      <button class="search-clear" onclick="document.getElementById('site-search').value='';clearSearch();document.getElementById('home-grid').style.display=(currentFilter==='tumu'||currentFilter==='gundem')?'grid':'none';document.getElementById('category-sections').style.display='block';">Aramayı temizle</button>
+    </div>
+    ${results.length === 0
+      ? `<div class="state-box"><p>${stillLoading ? 'Bazı kategoriler henüz yükleniyor, sonuçlar birazdan tamamlanabilir…' : 'Aramanla eşleşen bir haber bulunamadı.'}</p></div>`
+      : `<div class="card-grid">${results.map(a=>`
+          <article class="card" onclick="goToArticle('${a.id}')">
+            <div class="card-media">${a.image ? `<img src="${a.image}" alt="" loading="lazy">` : mediaFallback(CATS[a.cat] || '')}</div>
+            <h4>${escapeHtml(a.title)}</h4>
+            <p class="dek-sm">${escapeHtml(a.dek || '')}</p>
+            <div class="meta-sm">${escapeHtml(CATS[a.cat] || '')} · ${escapeHtml(a.author || '')} · ${timeAgo(a.pubDate)}</div>
+          </article>
+        `).join('')}</div>`}
+  `;
+}
+
 function filterCat(cat, btn){
   const target = cat === 'tumu' ? '' : cat;
   const current = location.hash.replace(/^#\/?/, '');
@@ -741,6 +851,7 @@ function filterCat(cat, btn){
 }
 
 function applyFilter(cat, btn){
+  clearSearch();
   currentFilter = cat;
   document.querySelectorAll('.nav-links button').forEach(b=>b.classList.remove('active'));
   const match = btn || document.querySelector(`.nav-links button[data-cat="${cat}"]`);
@@ -817,6 +928,8 @@ window.addEventListener('hashchange', applyRoute);
 function openArticle(id){
   const a = findArticle(id);
   if(!a) return;
+  clearSearch();
+  editingCommentId = null;
   activeArticle = a;
   document.getElementById('home-view').style.display = 'none';
   document.getElementById('admin-view').style.display = 'none';
@@ -886,6 +999,27 @@ function renderAiSummary(article){
   });
 }
 
+// Kullanıcının kendi yazdığı yorumları silebilmesi için, sunucudan gelen tek
+// kullanımlık ownerToken bu tarayıcıda { yorumId: ownerToken } olarak saklanır.
+// Sunucu ownerToken'ı asla GET cevaplarında geri döndürmez, bu yüzden bu eşleşme
+// sadece yorumu YAZAN tarayıcıda bulunur — başkası "Sil" düğmesini göremez.
+function myCommentTokens(){
+  try{ return JSON.parse(localStorage.getItem('kk_my_comments') || '{}'); }
+  catch(e){ return {}; }
+}
+function saveMyCommentToken(id, token){
+  const map = myCommentTokens();
+  map[id] = token;
+  localStorage.setItem('kk_my_comments', JSON.stringify(map));
+}
+function forgetMyCommentToken(id){
+  const map = myCommentTokens();
+  delete map[id];
+  localStorage.setItem('kk_my_comments', JSON.stringify(map));
+}
+
+let editingCommentId = null;
+
 function paintCommentList(link){
   const list = commentsCache[link] || [];
   document.getElementById('comment-count').textContent = 'Yorumlar (' + list.length + ')';
@@ -894,15 +1028,94 @@ function paintCommentList(link){
     box.innerHTML = '<p class="comment-empty">Henüz yorum yok. İlk yorumu sen yaz.</p>';
     return;
   }
-  box.innerHTML = [...list].sort((x,y)=>y.ts-x.ts).map(c=>`
+  const mine = myCommentTokens();
+  box.innerHTML = [...list].sort((x,y)=>y.ts-x.ts).map(c=>{
+    const isMine = !!mine[c.id];
+    const editedTag = c.editedAt ? '<span class="c-time">(düzenlendi)</span>' : '';
+    const bodyHtml = editingCommentId === c.id
+      ? `<div class="c-edit-form">
+          <textarea id="edit-text-${c.id}" maxlength="2000">${escapeHtml(c.text)}</textarea>
+          <div class="row-btn" style="gap:8px;">
+            <button class="c-own-delete" onclick="cancelEditOwnComment()">Vazgeç</button>
+            <button class="btn-primary" style="padding:6px 14px;font-size:13px;" onclick="saveEditOwnComment('${link.replace(/'/g,"\\'")}','${c.id}')">Kaydet</button>
+          </div>
+        </div>`
+      : `<div class="c-text">${escapeHtml(c.text)}</div>`;
+    return `
     <div class="comment-item">
       <div class="avatar" style="background:${avatarColor(c.name)}">${initials(c.name)}</div>
       <div class="c-body">
-        <span class="c-name">${escapeHtml(c.name)}</span><span class="c-time">${Math.max(0,Math.round((Date.now()-c.ts)/60000))} dk önce</span>
-        <div class="c-text">${escapeHtml(c.text)}</div>
+        <div class="c-name-row">
+          <span><span class="c-name">${escapeHtml(c.name)}</span><span class="c-time">${Math.max(0,Math.round((Date.now()-c.ts)/60000))} dk önce</span> ${editedTag}</span>
+          ${isMine && editingCommentId !== c.id ? `
+            <span>
+              <button class="c-own-delete" onclick="startEditOwnComment('${c.id}')">Düzenle</button>
+              <button class="c-own-delete" onclick="deleteOwnComment('${link.replace(/'/g,"\\'")}','${c.id}')">Sil</button>
+            </span>` : ''}
+        </div>
+        ${bodyHtml}
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
+}
+
+function startEditOwnComment(id){
+  editingCommentId = id;
+  paintCommentList(activeArticle.link);
+  const ta = document.getElementById('edit-text-' + id);
+  if(ta) ta.focus();
+}
+function cancelEditOwnComment(){
+  editingCommentId = null;
+  paintCommentList(activeArticle.link);
+}
+async function saveEditOwnComment(link, id){
+  const mine = myCommentTokens();
+  const ownerToken = mine[id];
+  if(!ownerToken) return;
+  const ta = document.getElementById('edit-text-' + id);
+  const text = ta ? ta.value.trim() : '';
+  if(!text){
+    ta.style.borderColor = 'var(--red)';
+    return;
+  }
+  try{
+    const res = await fetch('/api/comments', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({link, id, text, ownerToken})
+    });
+    const data = await res.json().catch(()=>null);
+    if(!res.ok || !data || !data.ok) throw new Error('fail');
+    if(commentsCache[link]){
+      const idx = commentsCache[link].findIndex(c=>c.id===id);
+      if(idx !== -1) commentsCache[link][idx] = data.comment;
+    }
+    editingCommentId = null;
+    paintCommentList(link);
+  }catch(e){
+    alert('Yorum güncellenemedi. Bağlantını kontrol edip tekrar dener misin?');
+  }
+}
+
+async function deleteOwnComment(link, id){
+  const mine = myCommentTokens();
+  const ownerToken = mine[id];
+  if(!ownerToken) return;
+  if(!confirm('Yorumunu silmek istediğine emin misin?')) return;
+  try{
+    const res = await fetch('/api/comments?link=' + encodeURIComponent(link) + '&id=' + encodeURIComponent(id) + '&ownerToken=' + encodeURIComponent(ownerToken), {
+      method: 'DELETE'
+    });
+    const data = await res.json().catch(()=>null);
+    if(!res.ok || !data || !data.ok) throw new Error('fail');
+    forgetMyCommentToken(id);
+    if(commentsCache[link]) commentsCache[link] = commentsCache[link].filter(c=>c.id !== id);
+    paintCommentList(link);
+  }catch(e){
+    alert('Yorum silinemedi. Bağlantını kontrol edip tekrar dener misin?');
+  }
 }
 
 async function renderComments(link){
@@ -951,6 +1164,7 @@ async function submitComment(){
     if(!res.ok || !data || !data.ok) throw new Error('fail');
     if(!commentsCache[link]) commentsCache[link] = [];
     commentsCache[link].push(data.comment);
+    if(data.ownerToken) saveMyCommentToken(data.comment.id, data.ownerToken);
     nameEl.value=''; textEl.value='';
     nameEl.style.borderColor = 'var(--hairline)';
     textEl.style.borderColor = 'var(--hairline)';
@@ -1001,6 +1215,7 @@ function isAdmin(){
   return !!adminToken();
 }
 function showAdminView(){
+  clearSearch();
   document.getElementById('home-view').style.display = 'none';
   document.getElementById('article-view').style.display = 'none';
   document.getElementById('admin-view').style.display = 'block';
@@ -1009,8 +1224,9 @@ function showAdminView(){
   document.getElementById('admin-panel-box').style.display = loggedIn ? 'block' : 'none';
   if(loggedIn){
     populateAdminCatSelect();
-    loadManualNews().then(renderAdminNewsList);
+    loadManualNews().then(()=>{ renderAdminNewsList(); renderAdminStats(); });
     renderAdminNewsList();
+    loadAdminComments();
   }
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -1045,7 +1261,80 @@ function populateAdminCatSelect(){
   const sel = document.getElementById('admin-cat');
   sel.innerHTML = Object.keys(CATS).map(k=>`<option value="${k}">${CATS[k]}</option>`).join('');
 }
-async function adminPublish(){
+function renderAdminStats(){
+  const box = document.getElementById('admin-stats');
+  if(!box) return;
+  const totalNews = manualNews.length;
+  const totalComments = adminCommentsCache.length;
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+  const todaysComments = adminCommentsCache.filter(c=>c.ts >= startOfToday.getTime()).length;
+  const countsByLink = {};
+  adminCommentsCache.forEach(c=>{ countsByLink[c.link] = (countsByLink[c.link]||0) + 1; });
+  let topLink = null, topCount = 0;
+  for(const link in countsByLink){
+    if(countsByLink[link] > topCount){ topCount = countsByLink[link]; topLink = link; }
+  }
+  const topArticle = topLink ? findArticleByLink(topLink) : null;
+  const topLabel = topCount > 0 ? (topArticle ? topArticle.title : topLink) : '—';
+  box.innerHTML = `
+    <div class="admin-stat-card"><div class="num">${totalNews}</div><div class="lbl">Eklenen haber</div></div>
+    <div class="admin-stat-card"><div class="num">${totalComments}</div><div class="lbl">Toplam yorum</div></div>
+    <div class="admin-stat-card"><div class="num">${todaysComments}</div><div class="lbl">Bugünkü yorum</div></div>
+    <div class="admin-stat-card" style="grid-column:1 / -1;"><div class="lbl">En çok yorum alan haber (${topCount})</div><div style="font-size:14px;font-weight:700;margin-top:2px;">${escapeHtml(topLabel)}</div></div>
+  `;
+}
+function exportAdminData(){
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    news: manualNews,
+    comments: adminCommentsCache,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'kulaktan-kulaga-yedek-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+let editingNewsId = null; // düzenleme modundaysa haberin id'sini tutar
+
+function fillAdminForm(n){
+  document.getElementById('admin-cat').value = n.cat;
+  document.getElementById('admin-title').value = n.title;
+  document.getElementById('admin-dek').value = n.dek;
+  document.getElementById('admin-image').value = n.image || '';
+  document.getElementById('admin-source').value = n.author || '';
+  document.getElementById('admin-link').value = (n.link && n.link !== '#') ? n.link : '';
+}
+function clearAdminForm(){
+  document.getElementById('admin-title').value = '';
+  document.getElementById('admin-dek').value = '';
+  document.getElementById('admin-image').value = '';
+  document.getElementById('admin-source').value = '';
+  document.getElementById('admin-link').value = '';
+}
+function editManualNews(id){
+  const n = manualNews.find(x=>x.id===id);
+  if(!n) return;
+  editingNewsId = id;
+  fillAdminForm(n);
+  document.getElementById('admin-form-title').textContent = 'Haberi Düzenle';
+  document.getElementById('admin-save-btn').textContent = 'Güncelle';
+  document.getElementById('admin-cancel-edit-btn').style.display = 'inline-block';
+  document.getElementById('admin-panel-box').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function adminCancelEdit(){
+  editingNewsId = null;
+  clearAdminForm();
+  document.getElementById('admin-cat').selectedIndex = 0;
+  document.getElementById('admin-form-title').textContent = 'Haber Ekle';
+  document.getElementById('admin-save-btn').textContent = 'Yayınla';
+  document.getElementById('admin-cancel-edit-btn').style.display = 'none';
+}
+async function adminSaveNews(){
   const cat = document.getElementById('admin-cat').value;
   const title = document.getElementById('admin-title').value.trim();
   const dek = document.getElementById('admin-dek').value.trim();
@@ -1056,15 +1345,18 @@ async function adminPublish(){
     alert('Başlık ve özet alanları zorunlu.');
     return;
   }
-  const btn = document.querySelector('#admin-panel-box .btn-primary');
+  const isEdit = !!editingNewsId;
+  const btn = document.getElementById('admin-save-btn');
   const originalLabel = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Yayınlanıyor…';
+  btn.textContent = isEdit ? 'Güncelleniyor…' : 'Yayınlanıyor…';
   try{
     const res = await fetch('/api/news', {
-      method: 'POST',
+      method: isEdit ? 'PUT' : 'POST',
       headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + adminToken()},
-      body: JSON.stringify({cat, title, dek, image: image || null, author: source, link})
+      body: JSON.stringify(isEdit
+        ? {id: editingNewsId, cat, title, dek, image: image || null, author: source, link}
+        : {cat, title, dek, image: image || null, author: source, link})
     });
     const data = await res.json().catch(()=>null);
     if(res.status === 401){
@@ -1074,21 +1366,19 @@ async function adminPublish(){
     }
     if(!res.ok || !data || !data.ok) throw new Error('fail');
     await loadManualNews();
-    document.getElementById('admin-title').value = '';
-    document.getElementById('admin-dek').value = '';
-    document.getElementById('admin-image').value = '';
-    document.getElementById('admin-source').value = '';
-    document.getElementById('admin-link').value = '';
+    if(isEdit) adminCancelEdit(); else clearAdminForm();
     renderAdminNewsList();
+    renderAdminStats();
     renderAll();
   }catch(e){
-    alert('Haber yayınlanamadı. Bağlantını kontrol edip tekrar dener misin?');
+    alert(isEdit ? 'Haber güncellenemedi. Bağlantını kontrol edip tekrar dener misin?' : 'Haber yayınlanamadı. Bağlantını kontrol edip tekrar dener misin?');
   }finally{
     btn.disabled = false;
     btn.textContent = originalLabel;
   }
 }
 async function deleteManualNews(id){
+  if(!confirm('Bu haberi silmek istediğine emin misin?')) return;
   try{
     const res = await fetch('/api/news?id=' + encodeURIComponent(id), {
       method: 'DELETE',
@@ -1100,8 +1390,10 @@ async function deleteManualNews(id){
       return;
     }
     if(!res.ok) throw new Error('fail');
+    if(editingNewsId === id) adminCancelEdit();
     await loadManualNews();
     renderAdminNewsList();
+    renderAdminStats();
     renderAll();
   }catch(e){
     alert('Haber silinemedi. Bağlantını kontrol edip tekrar dener misin?');
@@ -1109,19 +1401,189 @@ async function deleteManualNews(id){
 }
 function renderAdminNewsList(){
   const box = document.getElementById('admin-news-list');
+  const qEl = document.getElementById('admin-news-search');
+  const q = qEl ? qEl.value.trim().toLocaleLowerCase('tr') : '';
+  const filtered = !q ? manualNews : manualNews.filter(n=>
+    n.title.toLocaleLowerCase('tr').includes(q) ||
+    n.dek.toLocaleLowerCase('tr').includes(q) ||
+    (CATS[n.cat] || '').toLocaleLowerCase('tr').includes(q)
+  );
   if(manualNews.length === 0){
     box.innerHTML = '<p class="comment-empty">Henüz haber eklemedin.</p>';
     return;
   }
-  box.innerHTML = manualNews.map(n=>`
+  if(filtered.length === 0){
+    box.innerHTML = '<p class="comment-empty">Aramanla eşleşen bir haber yok.</p>';
+    return;
+  }
+  box.innerHTML = filtered.map(n=>`
     <div class="comment-item">
       <div class="c-body">
         <span class="c-name">${escapeHtml(n.title)}</span><span class="c-time">${CATS[n.cat]}</span>
         <div class="c-text">${escapeHtml(n.dek)}</div>
       </div>
-      <button class="back-btn" onclick="deleteManualNews('${n.id}')">Sil</button>
+      <div style="display:flex;gap:10px;flex:0 0 auto;">
+        <button class="back-btn" onclick="editManualNews('${n.id}')">Düzenle</button>
+        <button class="back-btn" onclick="deleteManualNews('${n.id}')">Sil</button>
+      </div>
     </div>
   `).join('');
+}
+
+/* ---------- yönetici: yorum moderasyonu ---------- */
+let adminCommentsCache = [];
+async function loadAdminComments(){
+  const box = document.getElementById('admin-comment-list');
+  box.innerHTML = '<p class="comment-empty">Yorumlar yükleniyor…</p>';
+  try{
+    const res = await fetch('/api/comments', {
+      headers: {'Authorization': 'Bearer ' + adminToken()}
+    });
+    if(res.status === 401){
+      box.innerHTML = '<p class="comment-empty">Oturumun sona ermiş, tekrar giriş yap.</p>';
+      return;
+    }
+    const data = await res.json().catch(()=>null);
+    if(!res.ok || !data || !Array.isArray(data.comments)) throw new Error('fail');
+    adminCommentsCache = data.comments;
+    renderAdminCommentList();
+    renderAdminStats();
+  }catch(e){
+    box.innerHTML = '<p class="comment-empty">Yorumlar yüklenemedi. Sayfayı yenileyip tekrar dener misin?</p>';
+  }
+}
+function renderAdminCommentList(){
+  const box = document.getElementById('admin-comment-list');
+  const qEl = document.getElementById('admin-comment-search');
+  const q = qEl ? qEl.value.trim().toLocaleLowerCase('tr') : '';
+  if(adminCommentsCache.length === 0){
+    box.innerHTML = '<p class="comment-empty">Henüz hiç yorum yok.</p>';
+    return;
+  }
+  const withHeading = adminCommentsCache.map(c=>{
+    const article = findArticleByLink(c.link);
+    return { ...c, heading: article ? article.title : c.link };
+  });
+  const filtered = !q ? withHeading : withHeading.filter(c=>
+    c.name.toLocaleLowerCase('tr').includes(q) ||
+    c.text.toLocaleLowerCase('tr').includes(q) ||
+    c.heading.toLocaleLowerCase('tr').includes(q)
+  );
+  if(filtered.length === 0){
+    box.innerHTML = '<p class="comment-empty">Aramanla eşleşen bir yorum yok.</p>';
+    return;
+  }
+  // Haber başına gruplanmış görünüm: aynı habere ait yorumlar bir arada,
+  // en üstte "Tümünü sil" ile o habere ait tüm yorumlar tek seferde temizlenebilir.
+  const groups = [];
+  const groupIndex = {};
+  filtered.forEach(c=>{
+    if(!(c.link in groupIndex)){
+      groupIndex[c.link] = groups.length;
+      groups.push({ link: c.link, heading: c.heading, items: [] });
+    }
+    groups[groupIndex[c.link]].items.push(c);
+  });
+  box.innerHTML = groups.map(g=>`
+    <div class="admin-group-head">
+      <h4>${escapeHtml(g.heading)} <span class="c-time">(${g.items.length} yorum)</span></h4>
+      <button class="back-btn" onclick="adminDeleteAllComments('${encodeURIComponent(g.link)}')">Tümünü sil</button>
+    </div>
+    ${g.items.map(c=>{
+      const editedTag = c.editedAt ? ' <span class="c-time">(düzenlendi)</span>' : '';
+      return `
+      <div class="comment-item">
+        <div class="c-body">
+          <span class="c-name">${escapeHtml(c.name)}</span><span class="c-time">${timeAgo(new Date(c.ts).toISOString())}</span>${editedTag}
+          <div class="c-text">${escapeHtml(c.text)}</div>
+        </div>
+        <div style="display:flex;gap:10px;flex:0 0 auto;">
+          <button class="back-btn" onclick="adminEditComment('${encodeURIComponent(c.link)}','${c.id}')">Düzenle</button>
+          <button class="back-btn" onclick="adminDeleteComment('${encodeURIComponent(c.link)}','${c.id}')">Sil</button>
+        </div>
+      </div>
+    `;
+    }).join('')}
+  `).join('');
+}
+async function adminDeleteAllComments(encodedLink){
+  const link = decodeURIComponent(encodedLink);
+  if(!confirm('Bu habere ait TÜM yorumları silmek istediğine emin misin? Bu işlem geri alınamaz.')) return;
+  try{
+    const res = await fetch('/api/comments?link=' + encodedLink + '&all=true', {
+      method: 'DELETE',
+      headers: {'Authorization': 'Bearer ' + adminToken()}
+    });
+    if(res.status === 401){
+      alert('Oturumun sona ermiş, lütfen tekrar giriş yap.');
+      adminLogout();
+      return;
+    }
+    if(!res.ok) throw new Error('fail');
+    if(commentsCache[link]) commentsCache[link] = [];
+    loadAdminComments();
+  }catch(e){
+    alert('Yorumlar silinemedi. Bağlantını kontrol edip tekrar dener misin?');
+  }
+}
+function findArticleByLink(link){
+  const manualHit = manualNews.find(n=>n.link===link);
+  if(manualHit) return manualHit;
+  for(const key in newsCache){
+    const list = newsCache[key];
+    if(!list) continue;
+    const found = list.find(a=>a.link===link);
+    if(found) return found;
+  }
+  return null;
+}
+async function adminEditComment(encodedLink, id){
+  const link = decodeURIComponent(encodedLink);
+  const current = adminCommentsCache.find(c=>c.link===link && c.id===id);
+  const next = prompt('Yorumu düzenle:', current ? current.text : '');
+  if(next === null) return;
+  if(!next.trim()){ alert('Yorum boş olamaz.'); return; }
+  try{
+    const res = await fetch('/api/comments', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + adminToken()},
+      body: JSON.stringify({link, id, text: next.trim()})
+    });
+    if(res.status === 401){
+      alert('Oturumun sona ermiş, lütfen tekrar giriş yap.');
+      adminLogout();
+      return;
+    }
+    const data = await res.json().catch(()=>null);
+    if(!res.ok || !data || !data.ok) throw new Error('fail');
+    if(commentsCache[link]){
+      const idx = commentsCache[link].findIndex(c=>c.id===id);
+      if(idx !== -1) commentsCache[link][idx] = data.comment;
+    }
+    loadAdminComments();
+  }catch(e){
+    alert('Yorum güncellenemedi. Bağlantını kontrol edip tekrar dener misin?');
+  }
+}
+async function adminDeleteComment(encodedLink, id){
+  if(!confirm('Bu yorumu silmek istediğine emin misin?')) return;
+  try{
+    const res = await fetch('/api/comments?link=' + encodedLink + '&id=' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: {'Authorization': 'Bearer ' + adminToken()}
+    });
+    if(res.status === 401){
+      alert('Oturumun sona ermiş, lütfen tekrar giriş yap.');
+      adminLogout();
+      return;
+    }
+    if(!res.ok) throw new Error('fail');
+    const link = decodeURIComponent(encodedLink);
+    if(commentsCache[link]) commentsCache[link] = commentsCache[link].filter(c=>c.id !== id);
+    loadAdminComments();
+  }catch(e){
+    alert('Yorum silinemedi. Bağlantını kontrol edip tekrar dener misin?');
+  }
 }
 
 /* ---------- bilgi modalları (İletişim, Künye, vb.) ---------- */

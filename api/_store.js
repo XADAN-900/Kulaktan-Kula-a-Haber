@@ -15,7 +15,7 @@
 // Bu değişken tanımlı olmadan (ör. henüz Blob bağlanmadıysa) yorumlar ve
 // haberler kalıcı olmaz; API bu durumda anlaşılır bir hata döner.
 
-const { put, get } = require('@vercel/blob');
+const { put, get, list } = require('@vercel/blob');
 
 function ensureConfigured() {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -61,4 +61,17 @@ async function writeJson(pathname, data) {
   });
 }
 
-module.exports = { readJson, writeJson };
+// prefix ile başlayan tüm blob'ların pathname'lerini döner (ör. tüm yorum dosyaları).
+async function listPathnames(prefix) {
+  ensureConfigured();
+  const out = [];
+  let cursor;
+  do {
+    const page = await list({ prefix, cursor, limit: 1000 });
+    for (const b of page.blobs) out.push(b.pathname);
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  return out;
+}
+
+module.exports = { readJson, writeJson, listPathnames };
