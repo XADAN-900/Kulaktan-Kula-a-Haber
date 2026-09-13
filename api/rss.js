@@ -15,12 +15,14 @@ const { fetchArticle } = require('./_extract');
 
 const ALLOWED_HOSTS = ['news.google.com'];
 
-// Doğrulama için tek bir öğeye ayrılan azami süre. Feed'deki öğeler paralel
-// işlendiği için toplam süre bunun toplamı değil, en yavaş isteğin süresidir.
-const PER_ITEM_TIMEOUT_MS = 6000;
+// Doğrulama için tek bir öğeye ayrılan azami süre. Google linki çözme (2 istek) +
+// gerçek sayfayı çekme (1 istek) sırayla yapıldığından eski süreden daha yüksek
+// tutuluyor. Feed'deki öğeler paralel işlendiği için toplam süre bunun toplamı
+// değil, en yavaş isteğin süresidir.
+const PER_ITEM_TIMEOUT_MS = 9000;
 // Feed'den en fazla kaç öğe doğrulanacak (bir kısmı kaynağı çekilemediği için
 // elenebileceğinden, sunulacak habere yetecek kadar payla çekiyoruz).
-const MAX_ITEMS_TO_CHECK = 30;
+const MAX_ITEMS_TO_CHECK = 20;
 
 function unescapeXml(str) {
   return (str || '')

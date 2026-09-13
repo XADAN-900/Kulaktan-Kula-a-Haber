@@ -11,6 +11,7 @@
 
 const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
+const { resolveGoogleNewsLink } = require('./_google-news');
 const metascraper = require('metascraper')([
   require('metascraper-image')(),
   require('metascraper-title')(),
@@ -76,6 +77,21 @@ async function fetchArticle(link, timeoutMs) {
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
   if (isBlockedHostname(parsed.hostname)) return null;
+
+  // Google News RSS linki gerçek habere düz bir HTTP yönlendirmesiyle gitmiyor —
+  // önce gerçek yayıncı adresini çözüyoruz. Çözülemezse kaynak yok sayılır.
+  let targetLink = link;
+  if (parsed.hostname.endsWith('google.com')) {
+    const resolved = await resolveGoogleNewsLink(link, timeoutMs || 9000);
+    if (!resolved) return null;
+    targetLink = resolved;
+    try {
+      parsed = new URL(targetLink);
+      if (isBlockedHostname(parsed.hostname)) return null;
+    } catch (e) {
+      return null;
+    }
+  }
 
   try {
     const controller = new AbortController();
