@@ -47,7 +47,7 @@ Sadece özeti yaz, başka açıklama ekleme.`;
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 500,
+        max_tokens: 900,
         temperature: 0.5,
       }),
     });
@@ -60,10 +60,24 @@ Sadece özeti yaz, başka açıklama ekleme.`;
     }
 
     const data = await groqRes.json();
-    const summary = data.choices?.[0]?.message?.content?.trim();
+    let summary = data.choices?.[0]?.message?.content?.trim();
     if (!summary) {
       res.status(502).json({ error: 'Özet üretilemedi.' });
       return;
+    }
+
+    // Token limiti yüzünden cümle ortasında kesildiyse, yarım cümleyi göstermek yerine
+    // son tam biten cümleye kadar kısalt (temiz görünsün).
+    const finishReason = data.choices?.[0]?.finish_reason;
+    if (finishReason === 'length') {
+      const lastSentenceEnd = Math.max(
+        summary.lastIndexOf('.'),
+        summary.lastIndexOf('!'),
+        summary.lastIndexOf('?')
+      );
+      if (lastSentenceEnd > 40) {
+        summary = summary.slice(0, lastSentenceEnd + 1).trim();
+      }
     }
 
     res.status(200).json({ summary });
