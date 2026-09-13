@@ -454,45 +454,16 @@ const commentsStore = {}; // {articleLink: [ {name, text, ts} ]}
 let currentFilter = 'tumu';
 let activeArticle = null;
 
-/* Birden fazla ücretsiz köprü servisi deneniyor; biri çalışmazsa diğerine geçiliyor. */
-function parseXmlItems(xmlText){
-  const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
-  if(xml.querySelector('parsererror')) throw new Error('xml-parse-fail');
-  const nodes = Array.from(xml.querySelectorAll('item'));
-  if(nodes.length === 0) throw new Error('empty-feed');
-  return nodes.map(node=>({
-    title: node.querySelector('title') ? node.querySelector('title').textContent : '',
-    link: node.querySelector('link') ? node.querySelector('link').textContent : '',
-    pubDate: node.querySelector('pubDate') ? node.querySelector('pubDate').textContent : '',
-    description: node.querySelector('description') ? node.querySelector('description').textContent : '',
-    author: ''
-  }));
-}
-/* not: rss2json ücretsiz kullanımda "count" parametresi api_key ister; api_key olmadan
-   gönderilirse 422 döner. Bu yüzden burada count parametresi kullanılmıyor (varsayılan 10 kayıt). */
-async function fetchViaRss2Json(url){
-  const proxyUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
-  const res = await fetch(proxyUrl);
+/* RSS artık kendi sunucumuzdaki /api/rss.js üzerinden çekiliyor. Sunucudan sunucuya
+   yapılan bu istek CORS'a tabi değildir, bu yüzden rss2json/allorigins/codetabs gibi
+   kararsız üçüncü parti proxy'lere artık ihtiyaç yok. */
+async function fetchViaOwnProxy(url){
+  const res = await fetch('/api/rss?url=' + encodeURIComponent(url));
   const data = await res.json().catch(()=>null);
-  if(!res.ok || !data || data.status !== 'ok' || !Array.isArray(data.items) || data.items.length === 0){
-    throw new Error('rss2json-fail');
+  if(!res.ok || !data || !Array.isArray(data.items) || data.items.length === 0){
+    throw new Error('own-proxy-fail');
   }
   return data.items;
-}
-async function fetchViaAllOrigins(url){
-  const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
-  const res = await fetch(proxyUrl);
-  if(!res.ok) throw new Error('allorigins-fail');
-  const data = await res.json().catch(()=>null);
-  if(!data || !data.contents) throw new Error('allorigins-empty');
-  return parseXmlItems(data.contents);
-}
-async function fetchViaCodetabs(url){
-  const proxyUrl = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url);
-  const res = await fetch(proxyUrl);
-  if(!res.ok) throw new Error('codetabs-fail');
-  const text = await res.text();
-  return parseXmlItems(text);
 }
 
 function deriveDek(rawDescription, title, source){
@@ -526,19 +497,11 @@ async function fetchCategory(catKey){
   const url = FEED_URLS[catKey];
   let rawItems;
   try{
-    rawItems = await fetchViaRss2Json(url);
-  }catch(e1){
-    try{
-      rawItems = await fetchViaAllOrigins(url);
-    }catch(e2){
-      try{
-        rawItems = await fetchViaCodetabs(url);
-      }catch(e3){
-        loadingState[catKey] = 'error';
-        newsCache[catKey] = null;
-        throw e3;
-      }
-    }
+    rawItems = await fetchViaOwnProxy(url);
+  }catch(e){
+    loadingState[catKey] = 'error';
+    newsCache[catKey] = null;
+    throw e;
   }
   const items = rawItems.slice(0, 18).map((item, idx)=>{
     const {title, source} = splitTitleSource(item.title);
