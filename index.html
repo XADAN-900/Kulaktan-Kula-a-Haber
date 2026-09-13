@@ -86,7 +86,7 @@
   .whisper-divider{width:100%;height:14px;margin:2px 0 22px;}
   .whisper-divider.small{height:11px;margin:14px 0;}
 
-  main{padding:30px 0 10px;}
+  main.wrap{padding:30px 24px 10px;}
   .home-grid{display:grid;grid-template-columns:1fr 320px;gap:44px;}
   .side-col{border-left:1px solid var(--hairline);padding-left:36px;}
   .side-col h3.side-title{font-size:15px;font-family:'Inter',sans-serif;font-weight:800;margin-bottom:4px;}
@@ -373,7 +373,6 @@
     <input type="text" id="admin-source" placeholder="Kaynak / yazar adı (opsiyonel)">
     <input type="text" id="admin-link" placeholder="Kaynak bağlantısı (opsiyonel)">
     <button class="btn-primary" onclick="adminPublish()">Yayınla</button>
-    <p class="admin-note">Not: Buradan eklenen haberler şu an sadece bu tarayıcıda saklanıyor (localStorage). Haberlerin herkese görünmesi için bir veritabanı bağlanması gerekiyor — istersen onu da ekleyebiliriz.</p>
     <h3 style="font-size:16px;margin-bottom:10px;">Eklediğin haberler</h3>
     <div id="admin-news-list"></div>
   </div>
@@ -499,14 +498,22 @@ const FEED_URLS = {
 
 const newsCache = {};     // {catKey: [ {...normalized article} ]}
 const loadingState = {};  // {catKey: 'idle'|'loading'|'error'|'done'}
-const commentsStore = {}; // {articleLink: [ {name, text, ts} ]}
+const commentsCache = {}; // {articleLink: [ {name, text, ts} ]} — /api/comments üzerinden doldurulur
 let currentFilter = 'tumu';
 let activeArticle = null;
 
-// Admin panelinden eklenen haberler, tarayıcıda kalıcı olsun diye localStorage'da tutulur.
-const manualNews = JSON.parse(localStorage.getItem('kk_manual_news') || '[]');
-function saveManualNews(){
-  localStorage.setItem('kk_manual_news', JSON.stringify(manualNews));
+// Admin panelinden eklenen haberler artık /api/news üzerinden sunucuda (kalıcı,
+// herkese görünür şekilde) saklanıyor — localStorage sadece bu tarayıcıya özeldi,
+// artık kullanılmıyor.
+let manualNews = [];
+async function loadManualNews(){
+  try{
+    const res = await fetch('/api/news');
+    const data = await res.json().catch(()=>null);
+    if(res.ok && data && Array.isArray(data.news)){
+      manualNews = data.news;
+    }
+  }catch(e){ /* sunucu haberleri şimdilik alınamadı, mevcut liste boş kalır */ }
 }
 
 // Beğen / beğenme oyları da localStorage'da, haber linkine göre saklanır.
@@ -879,8 +886,8 @@ function renderAiSummary(article){
   });
 }
 
-function renderComments(link){
-  const list = commentsStore[link] || [];
+function paintCommentList(link){
+  const list = commentsCache[link] || [];
   document.getElementById('comment-count').textContent = 'Yorumlar (' + list.length + ')';
   const box = document.getElementById('comment-list');
   if(list.length === 0){
@@ -891,14 +898,34 @@ function renderComments(link){
     <div class="comment-item">
       <div class="avatar" style="background:${avatarColor(c.name)}">${initials(c.name)}</div>
       <div class="c-body">
-        <span class="c-name">${c.name}</span><span class="c-time">${Math.max(0,Math.round((Date.now()-c.ts)/60000))} dk önce</span>
-        <div class="c-text">${c.text}</div>
+        <span class="c-name">${escapeHtml(c.name)}</span><span class="c-time">${Math.max(0,Math.round((Date.now()-c.ts)/60000))} dk önce</span>
+        <div class="c-text">${escapeHtml(c.text)}</div>
       </div>
     </div>
   `).join('');
 }
 
-function submitComment(){
+async function renderComments(link){
+  const box = document.getElementById('comment-list');
+  box.innerHTML = '<p class="comment-empty">Yorumlar yükleniyor…</p>';
+  document.getElementById('comment-count').textContent = 'Yorumlar';
+  try{
+    const res = await fetch('/api/comments?link=' + encodeURIComponent(link));
+    const data = await res.json().catch(()=>null);
+    if(!res.ok || !data || !Array.isArray(data.comments)) throw new Error('fail');
+    commentsCache[link] = data.comments;
+  }catch(e){
+    commentsCache[link] = commentsCache[link] || [];
+    box.innerHTML = '<p class="comment-empty">Yorumlar şu anda yüklenemedi. Sayfayı yenileyip tekrar dene.</p>';
+    document.getElementById('comment-count').textContent = 'Yorumlar';
+    return;
+  }
+  if(activeArticle && activeArticle.link === link){
+    paintCommentList(link);
+  }
+}
+
+async function submitComment(){
   if(!activeArticle) return;
   const nameEl = document.getElementById('c-name');
   const textEl = document.getElementById('c-text');
@@ -910,12 +937,30 @@ function submitComment(){
     return;
   }
   const link = activeArticle.link;
-  if(!commentsStore[link]) commentsStore[link] = [];
-  commentsStore[link].push({name, text, ts: Date.now()});
-  nameEl.value=''; textEl.value='';
-  nameEl.style.borderColor = 'var(--hairline)';
-  textEl.style.borderColor = 'var(--hairline)';
-  renderComments(link);
+  const btn = document.querySelector('.comment-form .btn-primary');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Gönderiliyor…';
+  try{
+    const res = await fetch('/api/comments', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({link, name, text})
+    });
+    const data = await res.json().catch(()=>null);
+    if(!res.ok || !data || !data.ok) throw new Error('fail');
+    if(!commentsCache[link]) commentsCache[link] = [];
+    commentsCache[link].push(data.comment);
+    nameEl.value=''; textEl.value='';
+    nameEl.style.borderColor = 'var(--hairline)';
+    textEl.style.borderColor = 'var(--hairline)';
+    paintCommentList(link);
+  }catch(e){
+    alert('Yorum gönderilemedi. Bağlantını kontrol edip tekrar dener misin?');
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 
 function showHome(){
@@ -949,8 +994,11 @@ function voteReaction(type){
 }
 
 /* ---------- yönetici (admin) paneli ---------- */
+function adminToken(){
+  return sessionStorage.getItem('kk_admin_token') || '';
+}
 function isAdmin(){
-  return sessionStorage.getItem('kk_admin') === '1';
+  return !!adminToken();
 }
 function showAdminView(){
   document.getElementById('home-view').style.display = 'none';
@@ -961,6 +1009,7 @@ function showAdminView(){
   document.getElementById('admin-panel-box').style.display = loggedIn ? 'block' : 'none';
   if(loggedIn){
     populateAdminCatSelect();
+    loadManualNews().then(renderAdminNewsList);
     renderAdminNewsList();
   }
   window.scrollTo({top:0,behavior:'smooth'});
@@ -977,8 +1026,8 @@ async function adminLogin(){
       body: JSON.stringify({username: user, password: pass})
     });
     const data = await res.json().catch(()=>null);
-    if(res.ok && data && data.ok){
-      sessionStorage.setItem('kk_admin', '1');
+    if(res.ok && data && data.ok && data.token){
+      sessionStorage.setItem('kk_admin_token', data.token);
       document.getElementById('admin-pass').value = '';
       showAdminView();
     } else {
@@ -989,14 +1038,14 @@ async function adminLogin(){
   }
 }
 function adminLogout(){
-  sessionStorage.removeItem('kk_admin');
+  sessionStorage.removeItem('kk_admin_token');
   showAdminView();
 }
 function populateAdminCatSelect(){
   const sel = document.getElementById('admin-cat');
   sel.innerHTML = Object.keys(CATS).map(k=>`<option value="${k}">${CATS[k]}</option>`).join('');
 }
-function adminPublish(){
+async function adminPublish(){
   const cat = document.getElementById('admin-cat').value;
   const title = document.getElementById('admin-title').value.trim();
   const dek = document.getElementById('admin-dek').value.trim();
@@ -1007,30 +1056,56 @@ function adminPublish(){
     alert('Başlık ve özet alanları zorunlu.');
     return;
   }
-  manualNews.unshift({
-    id: 'manuel-' + Date.now(),
-    cat, title, dek,
-    image: image || null,
-    author: source,
-    link,
-    pubDate: new Date().toISOString()
-  });
-  saveManualNews();
-  document.getElementById('admin-title').value = '';
-  document.getElementById('admin-dek').value = '';
-  document.getElementById('admin-image').value = '';
-  document.getElementById('admin-source').value = '';
-  document.getElementById('admin-link').value = '';
-  renderAdminNewsList();
-  renderAll();
+  const btn = document.querySelector('#admin-panel-box .btn-primary');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Yayınlanıyor…';
+  try{
+    const res = await fetch('/api/news', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + adminToken()},
+      body: JSON.stringify({cat, title, dek, image: image || null, author: source, link})
+    });
+    const data = await res.json().catch(()=>null);
+    if(res.status === 401){
+      alert('Oturumun sona ermiş, lütfen tekrar giriş yap.');
+      adminLogout();
+      return;
+    }
+    if(!res.ok || !data || !data.ok) throw new Error('fail');
+    await loadManualNews();
+    document.getElementById('admin-title').value = '';
+    document.getElementById('admin-dek').value = '';
+    document.getElementById('admin-image').value = '';
+    document.getElementById('admin-source').value = '';
+    document.getElementById('admin-link').value = '';
+    renderAdminNewsList();
+    renderAll();
+  }catch(e){
+    alert('Haber yayınlanamadı. Bağlantını kontrol edip tekrar dener misin?');
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
-function deleteManualNews(id){
-  const idx = manualNews.findIndex(n=>n.id===id);
-  if(idx === -1) return;
-  manualNews.splice(idx, 1);
-  saveManualNews();
-  renderAdminNewsList();
-  renderAll();
+async function deleteManualNews(id){
+  try{
+    const res = await fetch('/api/news?id=' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: {'Authorization': 'Bearer ' + adminToken()}
+    });
+    if(res.status === 401){
+      alert('Oturumun sona ermiş, lütfen tekrar giriş yap.');
+      adminLogout();
+      return;
+    }
+    if(!res.ok) throw new Error('fail');
+    await loadManualNews();
+    renderAdminNewsList();
+    renderAll();
+  }catch(e){
+    alert('Haber silinemedi. Bağlantını kontrol edip tekrar dener misin?');
+  }
 }
 function renderAdminNewsList(){
   const box = document.getElementById('admin-news-list');
@@ -1084,6 +1159,7 @@ document.addEventListener('keydown', e=>{
 
 /* ---------- başlat ---------- */
 renderAll();
+loadManualNews().then(renderAll);
 loadCategory('gundem').then(()=>{
   renderHero(); renderTrending(); renderTicker();
   applyRoute(); // sayfa doğrudan bir #kategori veya #haber/... adresiyle açıldıysa oraya git
